@@ -88,15 +88,20 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
         )
 
     def _build_agent_input(self, config: GoalDrivenAgentConfig) -> str:
+        sandbox_path = config.sandbox_root / config.run_id
         return (
             "You are assigned a new coding mission.\n"
             f"Goal: {config.goal}\n"
-            f"Sandbox root: {config.sandbox_root / config.run_id}\n"
+            f"Sandbox root: {sandbox_path}\n"
+            "All filesystem operations MUST remain inside this directory. "
+            "Use relative paths without leading slashes (e.g. `bubble_sort.py` or "
+            "`src/tests/test_sort.py`). Never reference host filesystem paths such as `/Users/...`.\n"
             "Plan your steps, produce code, run the necessary verification commands, "
             "and declare success only after verification passes."
         )
 
     def _agent_instructions(self, config: GoalDrivenAgentConfig) -> str:
+        sandbox_path = config.sandbox_root / config.run_id
         return (
             "You are an autonomous, goal-driven coding agent. "
             "Follow this iterative process:\n"
@@ -105,7 +110,9 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             "3. Use the Sandbox Executor MCP server to run commands or tests.\n"
             "4. Continue iterating until the goal is satisfied or clearly infeasible.\n"
             "Always explain your reasoning, cite files touched, and summarize results.\n"
-            "IMPORTANT: keep all filesystem operations within your assigned sandbox root."
+            f"IMPORTANT: keep every filesystem read/write within {sandbox_path} "
+            "(for example, write to `bubble_sort.py` or `tests/test_sort.py`). Always use "
+            "relative paths (no leading `/`) and never reference host paths such as `/Users/...`."
         )
 
     def _build_mcp_servers(self, config: GoalDrivenAgentConfig) -> list[MCPServer]:
