@@ -12,7 +12,9 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
 
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip \
+    && pip install . \
+    && pip install "pytest>=8.3.3"
 
 ENV SANDBOX_ROOT=/sandbox \
     TRANSPORT=streamable-http \

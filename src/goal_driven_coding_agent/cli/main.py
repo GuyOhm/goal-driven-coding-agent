@@ -23,6 +23,12 @@ from goal_driven_coding_agent.agents.coding.runner import (
     GoalDrivenAgentExecutionError,
     GoalDrivenCodingAgentRunner,
 )
+from goal_driven_coding_agent.benchmarks import (
+    BenchmarkDiscoveryError,
+    BenchmarkExercise,
+    BenchmarkSuiteLoader,
+    materialize_benchmark_exercise,
+)
 
 DEFAULT_MAX_ITERATIONS = 10
 DEFAULT_TIMEOUT_SECONDS = 1200
@@ -34,9 +40,15 @@ LOGGER = logging.getLogger("goal_driven_coding_agent")
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
-        description="Run the goal-driven coding agent on a specific goal.",
+        description="Run the goal-driven coding agent on a specific goal or benchmark suite.",
     )
-    parser.add_argument("--goal", type=str, required=True, help="Goal description.")
+    goal_group = parser.add_mutually_exclusive_group(required=True)
+    goal_group.add_argument("--goal", type=str, help="Goal description.")
+    goal_group.add_argument(
+        "--benchmarks",
+        action="store_true",
+        help="Solve Polyglot Benchmark exercises sequentially.",
+    )
     parser.add_argument(
         "--max-iterations",
         type=int,
@@ -98,7 +110,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="http://127.0.0.1:7102/mcp",
         help="Public URL of the executor MCP server.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--benchmarks-limit",
+        type=int,
+        default=None,
+        help="Run only the first N exercises (requires --benchmarks).",
+    )
+    args = parser.parse_args(argv)
+    if args.benchmarks_limit is not None and not args.benchmarks:
+        parser.error("--benchmarks-limit can only be used with --benchmarks.")
+    return args
 
 
 def _configure_logging(log_level: str) -> None:
@@ -132,11 +153,23 @@ def _generate_run_id() -> str:
     return f"run-{timestamp}-{uuid.uuid4().hex[:8]}"
 
 
-def _build_config(args: argparse.Namespace) -> GoalDrivenAgentConfig:
-    sandbox_root = (args.sandbox_root or PROJECT_ROOT / "sandbox_volumes").expanduser()
+def _resolve_sandbox_root(args: argparse.Namespace) -> Path:
+    return (args.sandbox_root or PROJECT_ROOT / "sandbox_volumes").expanduser()
+
+
+def _build_config(
+    args: argparse.Namespace,
+    *,
+    goal: str,
+    run_id: str | None = None,
+    context_blocks: Sequence[str] | None = None,
+) -> GoalDrivenAgentConfig:
+    sandbox_root = _resolve_sandbox_root(args)
     sandbox_root.mkdir(parents=True, exist_ok=True)
-    run_id = args.run_id or _generate_run_id()
-    project_name = _sanitize_compose_project(args.mcp_project_name or f"gdc-mcp-{run_id}")
+    final_run_id = run_id or args.run_id or _generate_run_id()
+    project_name = _sanitize_compose_project(
+        args.mcp_project_name or f"gdc-mcp-{final_run_id}"
+    )
     mcp_config = McpRuntimeConfig(
         compose_file=args.mcp_compose_file.resolve(),
         project_name=project_name,
@@ -145,14 +178,15 @@ def _build_config(args: argparse.Namespace) -> GoalDrivenAgentConfig:
         auto_start=False,
     )
     return GoalDrivenAgentConfig(
-        goal=args.goal.strip(),
+        goal=goal.strip(),
         workspace_root=PROJECT_ROOT,
         sandbox_root=sandbox_root,
         model=args.model,
         max_iterations=args.max_iterations,
         timeout_seconds=args.timeout_seconds,
-        run_id=run_id,
+        run_id=final_run_id,
         mcp=mcp_config,
+        context_blocks=tuple(context_blocks or ()),
     )
 
 
@@ -190,9 +224,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     _load_env()
     _require_environment_variable("OPENAI_API_KEY")
 
-    config = _build_config(args)
-    runner = GoalDrivenCodingAgentRunner()
+    if args.benchmarks:
+        return _run_benchmarks(args)
+    return _run_single_goal(args)
 
+
+def _run_single_goal(args: argparse.Namespace) -> int:
+    """Execute a single goal provided via CLI."""
+    config = _build_config(args, goal=args.goal or "")
+    runner = GoalDrivenCodingAgentRunner()
     try:
         result = runner.run(config)
     except GoalDrivenAgentExecutionError as exc:
@@ -201,9 +241,84 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:  # pragma: no cover - defensive logging
         LOGGER.exception("Agent execution failed unexpectedly.")
         return 1
-
     _print_result_summary(result)
     return 0
+
+
+def _run_benchmarks(args: argparse.Namespace) -> int:
+    """Execute Polyglot Benchmark exercises sequentially."""
+    sandbox_root = _resolve_sandbox_root(args)
+    loader = BenchmarkSuiteLoader(sandbox_root)
+    try:
+        exercises = loader.discover(limit=args.benchmarks_limit)
+    except (BenchmarkDiscoveryError, ValueError) as exc:
+        LOGGER.error("Unable to load benchmark exercises: %s", exc)
+        return 2
+
+    if not exercises:
+        LOGGER.warning("No benchmark exercises found in %s", loader.practice_root)
+        return 0
+
+    base_run_id = args.run_id or _generate_run_id()
+    runner = GoalDrivenCodingAgentRunner()
+    successes = 0
+    failures = 0
+
+    for index, seed_exercise in enumerate(exercises, start=1):
+        run_id = f"{base_run_id}-{seed_exercise.slug}"
+        LOGGER.info(
+            "Starting benchmark %s/%s: %s",
+            index,
+            len(exercises),
+            seed_exercise.display_name,
+        )
+        run_path = sandbox_root / run_id
+        run_path.mkdir(parents=True, exist_ok=True)
+        run_exercise = materialize_benchmark_exercise(seed_exercise, run_path)
+        context_blocks = run_exercise.build_context_blocks()
+        config = _build_config(
+            args,
+            goal=run_exercise.build_goal(),
+            run_id=run_id,
+            context_blocks=context_blocks,
+        )
+        _log_read_only_seed_warning(seed_exercise, run_exercise)
+        try:
+            result = runner.run(config)
+        except GoalDrivenAgentExecutionError as exc:
+            LOGGER.error("Benchmark %s failed to execute: %s", seed_exercise.slug, exc)
+            failures += 1
+            continue
+        except Exception:  # pragma: no cover - defensive logging
+            LOGGER.exception("Benchmark %s crashed unexpectedly.", seed_exercise.slug)
+            failures += 1
+            continue
+
+        _print_result_summary(result)
+        if result.success:
+            successes += 1
+        else:
+            failures += 1
+
+    LOGGER.info(
+        "Benchmark suite finished with %s successes and %s failures.",
+        successes,
+        failures,
+    )
+    return 0 if failures == 0 else 3
+
+
+def _log_read_only_seed_warning(
+    seed_exercise: BenchmarkExercise, run_exercise: BenchmarkExercise
+) -> None:
+    LOGGER.info(
+        "Copied benchmark %s into %s. Treat the original seed directory "
+        "`sandbox_volumes/benchmarks/.../%s` as read-only; persist all edits under %s.",
+        seed_exercise.slug,
+        run_exercise.relative_directory,
+        seed_exercise.relative_directory,
+        run_exercise.relative_directory,
+    )
 
 
 if __name__ == "__main__":

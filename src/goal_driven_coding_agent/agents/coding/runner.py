@@ -89,7 +89,7 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
 
     def _build_agent_input(self, config: GoalDrivenAgentConfig) -> str:
         sandbox_path = config.sandbox_root / config.run_id
-        return (
+        base = (
             "You are assigned a new coding mission.\n"
             f"Goal: {config.goal}\n"
             f"Sandbox root: {sandbox_path}\n"
@@ -99,6 +99,13 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             "Plan your steps, produce code, run the necessary verification commands, "
             "and declare success only after verification passes."
         )
+        if not config.context_blocks:
+            return base
+        context = "\n\n".join(
+            f"[Context {index}] {block}"
+            for index, block in enumerate(config.context_blocks, start=1)
+        )
+        return f"{base}\n\nAdditional reference material (read-only):\n{context}"
 
     def _agent_instructions(self, config: GoalDrivenAgentConfig) -> str:
         sandbox_path = config.sandbox_root / config.run_id
@@ -112,7 +119,9 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             "Always explain your reasoning, cite files touched, and summarize results.\n"
             f"IMPORTANT: keep every filesystem read/write within {sandbox_path} "
             "(for example, write to `bubble_sort.py` or `tests/test_sort.py`). Always use "
-            "relative paths (no leading `/`) and never reference host paths such as `/Users/...`."
+            "relative paths (no leading `/`) and never reference host paths such as `/Users/...`.\n"
+            "Seed benchmark files under `sandbox_volumes/benchmarks/...` are read-only; "
+            "make all edits inside the current run sandbox copy only."
         )
 
     def _build_mcp_servers(self, config: GoalDrivenAgentConfig) -> list[MCPServer]:

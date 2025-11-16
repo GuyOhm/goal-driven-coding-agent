@@ -3,7 +3,7 @@
 Two Docker images provide sandboxed MCP servers:
 
 - `containers/filesystem/Dockerfile` – exposes file operations (`sandbox_*` tools)
-- `containers/executor/Dockerfile` – exposes execution tools for shell/python commands
+- `containers/executor/Dockerfile` – exposes execution tools for shell/python commands and comes with `pytest` preinstalled so benchmark suites can run without extra setup.
 
 Launch both via Docker Compose:
 
@@ -48,4 +48,13 @@ Every agent run emits `run_manifest.json` inside the run’s sandbox directory (
 - Any non-fatal cleanup errors encountered during shutdown
 
 The CLI logs the manifest path on completion. Use tools like `jq` to inspect the timeline or ship the JSON to your preferred observability stack.
+
+## Benchmark Mode
+
+Run the agent against the Polyglot Benchmark exercises with the `--benchmarks` flag. The CLI reads each exercise’s `.docs/*.md` instructions, sets an appropriate goal, and executes the agent until every test file passes. The instructions, canonical solution stub, and official tests are injected into the LLM’s initial prompt as read-only context so it starts each attempt with full awareness of the requirements and current code. Source exercises now live under `sandbox_volumes/benchmarks`; each iteration copies the relevant exercise tree into the run sandbox so the agent always works on an isolated copy. Treat the seed directories as read-only—only modify files inside the run-specific copy under `sandbox_volumes/run-*/...`.
+
+- `python -m goal_driven_coding_agent.cli.main --benchmarks` – solve every exercise in `benchmarks/python/exercises/practice`
+- `python -m goal_driven_coding_agent.cli.main --benchmarks --benchmarks-limit 3` – run only the first three exercises
+
+When running benchmarks, a unique `run_id` is generated per exercise (or prefixed by `--run-id` when provided). Each iteration still produces a sandbox directory and run manifest just like a single-goal invocation.
 

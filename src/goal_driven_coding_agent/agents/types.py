@@ -20,6 +20,7 @@ class GoalDrivenAgentConfig:
     timeout_seconds: int
     run_id: str
     mcp: "McpRuntimeConfig"
+    context_blocks: Sequence[str] = field(default_factory=tuple)
 
     def resolve_sandbox_path(self) -> Path:
         """Return the absolute sandbox path for this run."""
