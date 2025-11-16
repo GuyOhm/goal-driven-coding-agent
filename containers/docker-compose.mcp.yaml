@@ -1,0 +1,33 @@
+services:
+  mcp-filesystem:
+    build:
+      context: ..
+      dockerfile: containers/filesystem/Dockerfile
+    environment:
+      SANDBOX_ROOT: ${SANDBOX_ROOT:-/sandbox}
+      TRANSPORT: streamable-http
+      HOST: 0.0.0.0
+      PORT: 7101
+      LOG_LEVEL: INFO
+    volumes:
+      - ../sandbox_volumes:/sandbox
+    ports:
+      - "7101:7101"
+
+  mcp-executor:
+    build:
+      context: ..
+      dockerfile: containers/executor/Dockerfile
+    environment:
+      SANDBOX_ROOT: ${SANDBOX_ROOT:-/sandbox}
+      TRANSPORT: streamable-http
+      HOST: 0.0.0.0
+      PORT: 7102
+      LOG_LEVEL: INFO
+      PYTHON_BINARY: python
+      TIMEOUT_SECONDS: 300
+    volumes:
+      - ../sandbox_volumes:/sandbox
+    ports:
+      - "7102:7102"
+

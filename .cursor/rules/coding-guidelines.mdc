@@ -1,0 +1,48 @@
+---
+description: Coding Guidelines And Conventions 
+alwaysApply: true
+---
+
+ALWAYS follow these rules while generating code:
+
+## Code Quality & Style
+- You MUST write clean, readable code with clear and explicit naming for functions, classes, and variables
+- You MUST follow PEP 8 conventions for Python code (naming, spacing, line length, imports)
+- You MUST use descriptive variable names (avoid single letters except in loops/comprehensions)
+- You MUST keep functions focused on a single responsibility (SRP)
+
+## Architecture & Design
+- You MUST keep code modular, maintainable, and testable at all times
+- You MUST use OOP principles and abstraction with Abstract Base Classes (ABC) for clean architecture
+- You MUST apply SOLID principles when designing classes and modules
+- You MUST separate concerns (business logic, data access, presentation)
+
+## Type Safety & Documentation
+- You MUST use type hints for all function signatures (parameters and return types)
+- You MUST write clear docstrings for public classes, methods, and functions
+- You MUST document complex logic with inline comments when necessary
+- You MUST use Python 3.10+ type hint features when appropriate (Union `|`, Optional)
+
+## Error Handling & Validation
+- You MUST handle exceptions gracefully with specific exception types
+- You MUST validate inputs at boundaries (API endpoints, function entry points)
+- You MUST provide meaningful error messages for debugging
+- You MUST use custom exceptions for domain-specific errors
+
+## Testing & Quality Assurance
+- You MUST write testable code with dependency injection where appropriate
+- You MUST aim for high test coverage of critical business logic
+- You MUST use pytest for testing with clear test names and structure
+- You MUST mock external dependencies in unit tests
+
+## Performance & Efficiency
+- You MUST write efficient and modern Python code
+- You MUST use appropriate data structures (sets for membership, dicts for lookups)
+- You MUST leverage standard library and well-established third-party libraries
+- You MUST avoid premature optimization (optimize only when needed and measured)
+
+## Dependencies & Imports
+- You MUST organize imports: standard library, third-party, local (per PEP 8)
+- You MUST use absolute imports for clarity
+- You MUST avoid wildcard imports (`from module import *`)
+- You MUST keep dependencies minimal and well-justified
