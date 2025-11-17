@@ -51,7 +51,7 @@ The CLI logs the manifest path on completion. Use tools like `jq` to inspect the
 
 ## Benchmark Mode
 
-Run the agent against the Polyglot Benchmark exercises with the `--benchmarks` flag. The CLI reads each exercise’s `.docs/*.md` instructions, sets an appropriate goal, and executes the agent until every test file passes. The instructions, canonical solution stub, and official tests are injected into the LLM’s initial prompt as read-only context so it starts each attempt with full awareness of the requirements and current code. Source exercises now live under `sandbox_volumes/benchmarks`; each iteration copies the relevant exercise tree into the run sandbox so the agent always works on an isolated copy. Treat the seed directories as read-only—only modify files inside the run-specific copy under `sandbox_volumes/run-*/...`.
+Run the agent against the Polyglot Benchmark exercises with the `--benchmarks` flag. The CLI reads each exercise’s `.docs/*.md` instructions, sets an appropriate goal, and executes the agent until every test file passes. The instructions, canonical solution stub, and official tests are injected into the LLM’s initial prompt as read-only context so it starts each attempt with full awareness of the requirements and current code.
 
 - `python -m goal_driven_coding_agent.cli.main --benchmarks` – solve every exercise in `benchmarks/python/exercises/practice`
 - `python -m goal_driven_coding_agent.cli.main --benchmarks --benchmarks-limit 3` – run only the first three exercises

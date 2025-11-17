@@ -4,14 +4,12 @@ from goal_driven_coding_agent.benchmarks.suite import (
     BenchmarkDiscoveryError,
     BenchmarkExercise,
     BenchmarkSuiteLoader,
-    materialize_benchmark_exercise,
 )
 
 __all__ = [
     "BenchmarkDiscoveryError",
     "BenchmarkExercise",
     "BenchmarkSuiteLoader",
-    "materialize_benchmark_exercise",
 ]
 
 

@@ -120,8 +120,9 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             f"IMPORTANT: keep every filesystem read/write within {sandbox_path} "
             "(for example, write to `bubble_sort.py` or `tests/test_sort.py`). Always use "
             "relative paths (no leading `/`) and never reference host paths such as `/Users/...`.\n"
-            "Seed benchmark files under `sandbox_volumes/benchmarks/...` are read-only; "
-            "make all edits inside the current run sandbox copy only."
+            "When benchmarks specify a canonical pytest command, run exactly that command after "
+            "each meaningful code change. Do not create or edit alternate test files unless the "
+            "goal explicitly instructs you to."
         )
 
     def _build_mcp_servers(self, config: GoalDrivenAgentConfig) -> list[MCPServer]:

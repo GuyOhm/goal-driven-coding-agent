@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
 
 
 class BenchmarkDiscoveryError(RuntimeError):
@@ -46,13 +45,22 @@ class BenchmarkExercise:
         """Compose the goal text that will be handed to the coding agent."""
         instructions = self.instructions_markdown.strip()
         return (
-            f"Solve the Polyglot Benchmark exercise '{self.display_name}'.\n"
-            f"All work must happen inside `{self.relative_directory}` located under the current run sandbox "
-            f"(the original `sandbox_volumes/benchmarks/...` tree is read-only seed material).\n"
-            f"Implement `{self.relative_solution_file}` so that "
-            f"`pytest {self.relative_test_file}` passes without failures.\n\n"
-            f"Exercise instructions (verbatim from upstream docs):\n"
-            f"{instructions}"
+            f"Primary goal: implement `{self.relative_solution_file}` so the canonical test suite "
+            f"`pytest {self.relative_test_file}` passes.\n"
+            f"- Run this command from the repository root (sandbox root): `pytest {self.relative_test_file}`.\n"
+            f"- If you `cd` into `{self.relative_directory}`, run `pytest {self.test_file.name}` instead.\n"
+            "Workflow checklist:\n"
+            "1. Inspect the current solution file.\n"
+            "2. Plan the necessary changes.\n"
+            "3. Edit the solution.\n"
+            "4. Run the pytest command above.\n"
+            "5. Repeat until pytest is green.\n"
+            "Rules:\n"
+            "- Do not create or edit alternate test files; always rely on the provided pytest module.\n"
+            "- Only modify files inside this exercise directory unless explicitly instructed.\n"
+            "- If pytest reports 'collected 0 items', inspect the file structure/imports instead of "
+            "rewriting tests.\n\n"
+            f"Exercise instructions (verbatim from upstream docs):\n{instructions}"
         )
 
     def _relative_path(self, path: Path) -> str:
@@ -85,7 +93,7 @@ class BenchmarkExercise:
             return f"Unable to read `{self._relative_path(path)}` ({exc})."
         if not contents:
             return None
-        return f"File `{self._relative_path(path)}` (seed copy - read-only):\n{contents}"
+        return f"File `{self._relative_path(path)}`:\n{contents}"
 
 
 class BenchmarkSuiteLoader:
@@ -173,26 +181,4 @@ class BenchmarkSuiteLoader:
             return
         if limit <= 0:
             raise ValueError("--benchmarks-limit must be a positive integer.")
-
-
-def materialize_benchmark_exercise(
-    exercise: BenchmarkExercise, sandbox_run_path: Path
-) -> BenchmarkExercise:
-    """Copy benchmark files into the run sandbox and return a run-scoped exercise."""
-    destination = sandbox_run_path / exercise.relative_directory
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(exercise.root, destination)
-    relative_solution = exercise.relative_solution_file
-    relative_test = exercise.relative_test_file
-    return BenchmarkExercise(
-        slug=exercise.slug,
-        workspace_root=sandbox_run_path,
-        root=destination,
-        solution_file=sandbox_run_path / relative_solution,
-        test_file=sandbox_run_path / relative_test,
-        instructions_markdown=exercise.instructions_markdown,
-    )
-
 

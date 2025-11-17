@@ -27,7 +27,6 @@ from goal_driven_coding_agent.benchmarks import (
     BenchmarkDiscoveryError,
     BenchmarkExercise,
     BenchmarkSuiteLoader,
-    materialize_benchmark_exercise,
 )
 
 DEFAULT_MAX_ITERATIONS = 10
@@ -157,6 +156,38 @@ def _resolve_sandbox_root(args: argparse.Namespace) -> Path:
     return (args.sandbox_root or PROJECT_ROOT / "sandbox_volumes").expanduser()
 
 
+def _collect_test_files(exercise_root: Path) -> set[Path]:
+    return {path for path in exercise_root.glob("test*.py") if path.suffix == ".py"}
+
+
+def _guard_unapproved_test_files(
+    exercise: BenchmarkExercise, initial_tests: set[Path]
+) -> None:
+    current_tests = _collect_test_files(exercise.root)
+    unauthorized = {
+        path
+        for path in current_tests - initial_tests
+        if path.resolve() != exercise.test_file.resolve()
+    }
+    for path in unauthorized:
+        try:
+            path.unlink()
+            LOGGER.warning(
+                "Removed unauthorized test file %s for exercise %s. "
+                "Only run the canonical pytest suite %s.",
+                path,
+                exercise.slug,
+                exercise.relative_test_file,
+            )
+        except OSError as exc:  # pragma: no cover - filesystem guard
+            LOGGER.error(
+                "Failed to delete unauthorized test file %s for %s: %s",
+                path,
+                exercise.slug,
+                exc,
+            )
+
+
 def _build_config(
     args: argparse.Namespace,
     *,
@@ -264,35 +295,35 @@ def _run_benchmarks(args: argparse.Namespace) -> int:
     successes = 0
     failures = 0
 
-    for index, seed_exercise in enumerate(exercises, start=1):
-        run_id = f"{base_run_id}-{seed_exercise.slug}"
+    for index, exercise in enumerate(exercises, start=1):
+        run_id = f"{base_run_id}-{exercise.slug}"
         LOGGER.info(
             "Starting benchmark %s/%s: %s",
             index,
             len(exercises),
-            seed_exercise.display_name,
+            exercise.display_name,
         )
-        run_path = sandbox_root / run_id
-        run_path.mkdir(parents=True, exist_ok=True)
-        run_exercise = materialize_benchmark_exercise(seed_exercise, run_path)
-        context_blocks = run_exercise.build_context_blocks()
+        initial_tests = _collect_test_files(exercise.root)
+        context_blocks = exercise.build_context_blocks()
         config = _build_config(
             args,
-            goal=run_exercise.build_goal(),
+            goal=exercise.build_goal(),
             run_id=run_id,
             context_blocks=context_blocks,
         )
-        _log_read_only_seed_warning(seed_exercise, run_exercise)
+        config.resolve_sandbox_path()
         try:
             result = runner.run(config)
         except GoalDrivenAgentExecutionError as exc:
-            LOGGER.error("Benchmark %s failed to execute: %s", seed_exercise.slug, exc)
+            LOGGER.error("Benchmark %s failed to execute: %s", exercise.slug, exc)
             failures += 1
             continue
         except Exception:  # pragma: no cover - defensive logging
-            LOGGER.exception("Benchmark %s crashed unexpectedly.", seed_exercise.slug)
+            LOGGER.exception("Benchmark %s crashed unexpectedly.", exercise.slug)
             failures += 1
             continue
+        finally:
+            _guard_unapproved_test_files(exercise, initial_tests)
 
         _print_result_summary(result)
         if result.success:
@@ -306,19 +337,6 @@ def _run_benchmarks(args: argparse.Namespace) -> int:
         failures,
     )
     return 0 if failures == 0 else 3
-
-
-def _log_read_only_seed_warning(
-    seed_exercise: BenchmarkExercise, run_exercise: BenchmarkExercise
-) -> None:
-    LOGGER.info(
-        "Copied benchmark %s into %s. Treat the original seed directory "
-        "`sandbox_volumes/benchmarks/.../%s` as read-only; persist all edits under %s.",
-        seed_exercise.slug,
-        run_exercise.relative_directory,
-        seed_exercise.relative_directory,
-        run_exercise.relative_directory,
-    )
 
 
 if __name__ == "__main__":

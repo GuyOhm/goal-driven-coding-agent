@@ -9,7 +9,6 @@ import pytest
 from goal_driven_coding_agent.benchmarks import (
     BenchmarkDiscoveryError,
     BenchmarkSuiteLoader,
-    materialize_benchmark_exercise,
 )
 
 
@@ -74,20 +73,5 @@ def test_build_context_blocks_includes_instructions_and_files(tmp_path: Path) ->
     assert any("Specific instructions." in block for block in blocks)
     assert any("affine_cipher.py" in block for block in blocks)
     assert any("affine_cipher_test.py" in block for block in blocks)
-
-
-def test_materialize_exercise_copies_content(tmp_path: Path) -> None:
-    _create_exercise(tmp_path, "affine-cipher", "copy me")
-    loader = BenchmarkSuiteLoader(tmp_path)
-    exercise = loader.discover()[0]
-    sandbox_run_path = tmp_path / "run-123"
-
-    run_exercise = materialize_benchmark_exercise(exercise, sandbox_run_path)
-
-    assert run_exercise.root.exists()
-    assert run_exercise.root == sandbox_run_path / exercise.relative_directory
-    source = exercise.root / "affine_cipher.py"
-    copied = run_exercise.solution_file
-    assert copied.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
 
 
