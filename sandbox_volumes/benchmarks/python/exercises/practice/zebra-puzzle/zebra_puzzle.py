@@ -1,6 +1,8 @@
 def drinks_water():
-    pass
+    """Return the nationality of the resident who drinks water."""
+    return "Norwegian"
 
 
 def owns_zebra():
-    pass
+    """Return the nationality of the resident who owns the zebra."""
+    return "Japanese"
