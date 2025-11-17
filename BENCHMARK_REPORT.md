@@ -12,7 +12,7 @@ The agent was run against the entire suite of 34 Python benchmark exercises.
 The final benchmark run was achieved using the `gpt-5-mini` model.
 
 -   **Model:** `gpt-5-mini`
--   **Link to Final Code Solutions:** [code solutions](./sandbox_volumes/run-20251117T171840Z-7d5cffb0-affine-cipher/benchmarks/python/exercises/practice/)
+-   **Link to Final Code Solutions:** [code solutions](./sandbox_volumes/benchmarks/python/exercises/practice/)
 -   **Link to Execution Traces:** [run_manifest files](./sandbox_volumes/)
 
 ---
