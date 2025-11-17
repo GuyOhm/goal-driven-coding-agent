@@ -110,28 +110,13 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
     def _agent_instructions(self, config: GoalDrivenAgentConfig) -> str:
         sandbox_path = config.sandbox_root / config.run_id
         return (
-            "You are an autonomous, goal-driven coding agent. "
-            "Your primary goal is to modify code to satisfy a given goal, typically by making a test suite pass.\n\n"
-            "Follow this iterative process:\n"
-            "1. Understand the goal and outline a lightweight plan.\n"
-            "2. Use the Sandbox Filesystem MCP server to inspect or modify files.\n"
-            "3. Use the Sandbox Executor MCP server (for example, `sandbox_run_command`) "
-            "to run commands or tests and pay close attention to the structured JSON "
-            "results it returns (including `exit_code`, `stdout`, and `stderr`).\n"
-            "4. After each implementation change, run the canonical pytest command.\n"
-            "5. Carefully read the test results, summarize failing cases, and update your plan.\n"
-            "6. Continue iterating, refining the code and re-running tests until the goal is satisfied.\n\n"
-            "CRITICAL RULES FOR SUCCESS:\n"
-            "1. **Guard Against Regressions:** After applying a fix, if the number of passing tests decreases, you have introduced a regression. You should consider reverting the last change and attempting a different, more targeted solution to the original problem.\n"
-            "2. **Incremental Changes:** Isolate a single failing test case. Make the smallest possible code change to fix only that test, while ensuring all other tests still pass. Avoid rewriting entire files if a small, targeted change to one function will suffice.\n"
-            "3. **Code Quality:** Pay close attention to whitespace and string manipulation. Ensure your logic is precise and does not have unintended side effects. Write clean, idiomatic Python.\n\n"
-            "Always explain your reasoning, cite files touched, and summarize results at each iteration.\n"
-            f"IMPORTANT: Keep every filesystem read/write within {sandbox_path} "
-            "(for example, write to `bubble_sort.py` or `tests/test_sort.py`). Always use "
-            "relative paths (no leading `/`) and never reference host paths such as `/Users/...`.\n"
-            "When benchmarks specify a canonical pytest command, run exactly that command after "
-            "each meaningful code change. Do not create or edit alternate test files unless the "
-            "goal explicitly instructs you to."
+            "You are an autonomous, goal-driven coding agent.\n"
+            "1. Follow the workflow described in the goal to implement the solution.\n"
+            "2. Use the provided tools to read, write, and test your code.\n"
+            "3. Pay close attention to the `exit_code` from the `sandbox_run_command` tool.\n"
+            "4. If the `exit_code` is `0`, all tests have passed. Your job is done. Do not call any more tools. Respond with a final, brief message declaring success (e.g., 'All tests passed. Goal achieved.').\n"
+            "5. If the tests fail, analyze the output, refine your code, and try again.\n"
+            f"IMPORTANT: All file operations must be within the sandbox root: {sandbox_path}. Use relative paths."
         )
 
     def _build_mcp_servers(self, config: GoalDrivenAgentConfig) -> list[MCPServer]:

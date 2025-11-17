@@ -45,22 +45,16 @@ class BenchmarkExercise:
         """Compose the goal text that will be handed to the coding agent."""
         instructions = self.instructions_markdown.strip()
         return (
-            f"Primary goal: implement `{self.relative_solution_file}` so the canonical test suite "
-            f"`pytest {self.relative_test_file}` passes.\n"
-            f"- Run this command from the repository root (sandbox root): `pytest {self.relative_test_file}`.\n"
-            f"- If you `cd` into `{self.relative_directory}`, run `pytest {self.test_file.name}` instead.\n"
-            "Workflow checklist:\n"
-            "1. Inspect the current solution file.\n"
-            "2. Plan the necessary changes.\n"
-            "3. Edit the solution.\n"
-            "4. Run the pytest command above.\n"
-            "5. Repeat until pytest is green.\n"
-            "Rules:\n"
-            "- Do not create or edit alternate test files; always rely on the provided pytest module.\n"
-            "- Only modify files inside this exercise directory unless explicitly instructed.\n"
-            "- If pytest reports 'collected 0 items', inspect the file structure/imports instead of "
-            "rewriting tests.\n\n"
-            f"Exercise instructions (verbatim from upstream docs):\n{instructions}"
+            f"Your goal is to implement the file `{self.relative_solution_file}` so that all tests in `{self.relative_test_file}` pass.\n"
+            "To verify your solution, you must run the following command from the repository root (the sandbox root):\n"
+            f"`pytest {self.relative_test_file}`\n\n"
+            "**Follow this workflow:**\n"
+            "1. Read the solution file and the test file to understand the requirements.\n"
+            "2. Implement the necessary changes in the solution file.\n"
+            "3. Run the `pytest` command specified above.\n"
+            "4. If tests fail, analyze the errors and repeat the process.\n"
+            "5. If all tests pass, the goal is achieved.\n\n"
+            f"Exercise instructions:\n{instructions}"
         )
 
     def _relative_path(self, path: Path) -> str:
