@@ -7,6 +7,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Sequence
+import json
 
 from agents import Agent
 from agents.mcp import MCPServer, MCPServerStreamableHttp, MCPServerStreamableHttpParams
@@ -82,7 +83,6 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
         return Agent(
             name="GoalDrivenCoder",
             instructions=self._agent_instructions(config),
-            tools=[],
             mcp_servers=list(mcp_servers),
             model=config.model,
         )
@@ -111,13 +111,22 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
         sandbox_path = config.sandbox_root / config.run_id
         return (
             "You are an autonomous, goal-driven coding agent. "
+            "Your primary goal is to modify code to satisfy a given goal, typically by making a test suite pass.\n\n"
             "Follow this iterative process:\n"
             "1. Understand the goal and outline a lightweight plan.\n"
             "2. Use the Sandbox Filesystem MCP server to inspect or modify files.\n"
-            "3. Use the Sandbox Executor MCP server to run commands or tests.\n"
-            "4. Continue iterating until the goal is satisfied or clearly infeasible.\n"
-            "Always explain your reasoning, cite files touched, and summarize results.\n"
-            f"IMPORTANT: keep every filesystem read/write within {sandbox_path} "
+            "3. Use the Sandbox Executor MCP server (for example, `sandbox_run_command`) "
+            "to run commands or tests and pay close attention to the structured JSON "
+            "results it returns (including `exit_code`, `stdout`, and `stderr`).\n"
+            "4. After each implementation change, run the canonical pytest command.\n"
+            "5. Carefully read the test results, summarize failing cases, and update your plan.\n"
+            "6. Continue iterating, refining the code and re-running tests until the goal is satisfied.\n\n"
+            "CRITICAL RULES FOR SUCCESS:\n"
+            "1. **Guard Against Regressions:** After applying a fix, if the number of passing tests decreases, you have introduced a regression. You should consider reverting the last change and attempting a different, more targeted solution to the original problem.\n"
+            "2. **Incremental Changes:** Isolate a single failing test case. Make the smallest possible code change to fix only that test, while ensuring all other tests still pass. Avoid rewriting entire files if a small, targeted change to one function will suffice.\n"
+            "3. **Code Quality:** Pay close attention to whitespace and string manipulation. Ensure your logic is precise and does not have unintended side effects. Write clean, idiomatic Python.\n\n"
+            "Always explain your reasoning, cite files touched, and summarize results at each iteration.\n"
+            f"IMPORTANT: Keep every filesystem read/write within {sandbox_path} "
             "(for example, write to `bubble_sort.py` or `tests/test_sort.py`). Always use "
             "relative paths (no leading `/`) and never reference host paths such as `/Users/...`.\n"
             "When benchmarks specify a canonical pytest command, run exactly that command after "
@@ -149,11 +158,14 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
     ) -> GoalDrivenAgentResult:
         finished_at = datetime.now(timezone.utc)
         final_output = str(run_result.final_output) if run_result.final_output else None
-        logs: Sequence[str] = [str(item) for item in getattr(run_result, "new_items", [])]
+        logs: Sequence[str] = [
+            str(item) for item in getattr(run_result, "new_items", [])
+        ]
+        success = self._tests_passed(run_result=run_result, fallback=bool(final_output))
         return GoalDrivenAgentResult(
             goal=config.goal,
             run_id=config.run_id,
-            success=bool(final_output),
+            success=success,
             iterations=len(run_result.new_items),
             started_at=started_at,
             finished_at=finished_at,
@@ -162,6 +174,54 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             logs=logs,
             errors=[],
         )
+
+    def _tests_passed(self, run_result: RunResult, fallback: bool) -> bool:
+        """Determine success based on the latest pytest run, if available.
+
+        We scan MCP tool calls from the sandbox executor for `sandbox_run_command`
+        invocations that executed pytest, and then derive success from the most
+        recent pytest exit code. When no such run can be found or parsed, we
+        fall back to the provided default.
+        """
+        try:
+            # Local imports avoid hard dependencies at module import time.
+            from agents.items import ToolCallItem  # type: ignore
+            from openai.types.responses.response_output_item import McpCall  # type: ignore
+        except Exception:  # pragma: no cover - defensive import guard
+            return fallback
+
+        last_pytest_exit: int | None = None
+
+        for item in getattr(run_result, "new_items", []):
+            if not isinstance(item, ToolCallItem):
+                continue
+            raw = getattr(item, "raw_item", None)
+            if not isinstance(raw, McpCall):
+                continue
+            if raw.server_label != "sandbox-executor" or raw.name != "sandbox_run_command":
+                continue
+
+            try:
+                payload = json.loads(raw.output)
+            except Exception:
+                continue
+
+            command = payload.get("command")
+            if isinstance(command, list):
+                command_str = " ".join(str(part) for part in command)
+            else:
+                command_str = str(command or "")
+
+            if "pytest" not in command_str:
+                continue
+
+            exit_code = payload.get("exit_code")
+            if isinstance(exit_code, int):
+                last_pytest_exit = exit_code
+
+        if last_pytest_exit is None:
+            return fallback
+        return last_pytest_exit == 0
 
     async def _connect_mcp_servers(self, servers: Sequence[MCPServer]) -> None:
         for server in servers:
