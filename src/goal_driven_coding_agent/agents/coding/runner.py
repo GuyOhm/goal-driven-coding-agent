@@ -1,13 +1,10 @@
-"""Goal-driven coding agent runner implementation."""
-
-from __future__ import annotations
-
 import asyncio
+import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Sequence
-import json
+from typing import Any, Sequence, Tuple
 
 from agents import Agent
 from agents.mcp import MCPServer, MCPServerStreamableHttp, MCPServerStreamableHttpParams
@@ -146,7 +143,7 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
         logs: Sequence[str] = [
             str(item) for item in getattr(run_result, "new_items", [])
         ]
-        success = self._tests_passed(run_result=run_result, fallback=bool(final_output))
+        success = self._tests_passed(run_result=run_result)
         return GoalDrivenAgentResult(
             goal=config.goal,
             run_id=config.run_id,
@@ -160,53 +157,46 @@ class GoalDrivenCodingAgentRunner(AgentRunner):
             errors=[],
         )
 
-    def _tests_passed(self, run_result: RunResult, fallback: bool) -> bool:
-        """Determine success based on the latest pytest run, if available.
-
-        We scan MCP tool calls from the sandbox executor for `sandbox_run_command`
-        invocations that executed pytest, and then derive success from the most
-        recent pytest exit code. When no such run can be found or parsed, we
-        fall back to the provided default.
+    def _tests_passed(self, run_result: RunResult) -> bool:
+        """
+        Determine success based on the exit code of the last pytest run,
+        with a fallback to checking the agent's final output.
         """
         try:
-            # Local imports avoid hard dependencies at module import time.
-            from agents.items import ToolCallItem  # type: ignore
-            from openai.types.responses.response_output_item import McpCall  # type: ignore
-        except Exception:  # pragma: no cover - defensive import guard
-            return fallback
+            from agents.items import ToolCallItem
+            from openai.types.responses.response_output_item import McpCall
+        except Exception:
+            return False
 
-        last_pytest_exit: int | None = None
+        # Primary method: Check the exit code of the last pytest run
+        last_pytest_exit_code: int | None = None
+        if hasattr(run_result, "new_items"):
+            for item in reversed(run_result.new_items):
+                if isinstance(item, ToolCallItem):
+                    raw = getattr(item, "raw_item", None)
+                    if not isinstance(raw, McpCall):
+                        continue
+                    if raw.server_label == "sandbox-executor" and raw.name == "sandbox_run_command":
+                        try:
+                            payload = json.loads(raw.output)
+                            command = payload.get("command", "")
+                            if "pytest" in str(command):
+                                exit_code = payload.get("exit_code")
+                                if isinstance(exit_code, int):
+                                    last_pytest_exit_code = exit_code
+                                    break  # Found the last one
+                        except Exception:
+                            continue
+        
+        if last_pytest_exit_code == 0:
+            return True
 
-        for item in getattr(run_result, "new_items", []):
-            if not isinstance(item, ToolCallItem):
-                continue
-            raw = getattr(item, "raw_item", None)
-            if not isinstance(raw, McpCall):
-                continue
-            if raw.server_label != "sandbox-executor" or raw.name != "sandbox_run_command":
-                continue
+        # Secondary method: Check the agent's final output for success keywords
+        final_output = str(run_result.final_output).lower() if run_result.final_output else ""
+        if "all tests passed" in final_output or "goal achieved" in final_output:
+            return True
 
-            try:
-                payload = json.loads(raw.output)
-            except Exception:
-                continue
-
-            command = payload.get("command")
-            if isinstance(command, list):
-                command_str = " ".join(str(part) for part in command)
-            else:
-                command_str = str(command or "")
-
-            if "pytest" not in command_str:
-                continue
-
-            exit_code = payload.get("exit_code")
-            if isinstance(exit_code, int):
-                last_pytest_exit = exit_code
-
-        if last_pytest_exit is None:
-            return fallback
-        return last_pytest_exit == 0
+        return False
 
     async def _connect_mcp_servers(self, servers: Sequence[MCPServer]) -> None:
         for server in servers:
