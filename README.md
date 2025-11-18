@@ -38,7 +38,7 @@ This architecture ensures that the agent's entire workspace—both for file mani
 
 ### 3. MCP Integration
 
-The agent communicates with its sandboxed tools using the Multi-Capability Protocol (MCP). The two MCP servers listen on `http://127.0.0.1:7101` (filesystem) and `http://127.0.0.1:7102` (executor). The agent, via the OpenAI Agents SDK, connects to these endpoints to discover and invoke the available tools.
+The agent communicates with its sandboxed tools using the Model Context Protocol (MCP). The two MCP servers listen on `http://127.0.0.1:7101` (filesystem) and `http://127.0.0.1:7102` (executor). The agent, via the OpenAI Agents SDK, connects to these endpoints to discover and invoke the available tools.
 
 -   **Filesystem Tools:** The agent uses tools like `sandbox_read_file` and `sandbox_write_file` to interact with the code.
 -   **Executor Tool:** The agent uses the `sandbox_run_command` tool to execute the `pytest` suite and verify its implementation.
