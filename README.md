@@ -7,7 +7,7 @@ This project contains a simple, fully sandboxed, goal-driven coding agent built 
 - **Autonomous Agentic Loop:** The agent autonomously decides which tools to use and when its task is complete, driven by a clear goal.
 - **OpenAI Agents SDK:** Built on the official OpenAI Agents SDK for managing agentic workflows.
 - **Sandboxed Environment:** All file operations and code execution occur within a secure, containerized environment using Docker.
-- **MCP (Multi-Capability Protocol):** Leverages MCP for communication between the agent and its sandboxed tools, including a filesystem manager and a code executor.
+- **MCP (Model Context Protocol):** Leverages MCP for communication between the agent and its sandboxed tools, including a filesystem manager and a code executor.
 - **Benchmarking:** Includes a suite for running the agent against Polyglot Benchmark exercises to measure performance.
 
 ---
