@@ -7,7 +7,7 @@ This project contains a simple, fully sandboxed, goal-driven coding agent built 
 - **Autonomous Agentic Loop:** The agent autonomously decides which tools to use and when its task is complete, driven by a clear goal.
 - **OpenAI Agents SDK:** Built on the official OpenAI Agents SDK for managing agentic workflows.
 - **Sandboxed Environment:** All file operations and code execution occur within a secure, containerized environment using Docker.
-- **MCP (Multi-Capability Protocol):** Leverages MCP for communication between the agent and its sandboxed tools, including a filesystem manager and a code executor.
+- **MCP (Model Context Protocol):** Leverages MCP for communication between the agent and its sandboxed tools, including a filesystem manager and a code executor.
 - **Benchmarking:** Includes a suite for running the agent against Polyglot Benchmark exercises to measure performance.
 
 ---
@@ -38,7 +38,7 @@ This architecture ensures that the agent's entire workspace—both for file mani
 
 ### 3. MCP Integration
 
-The agent communicates with its sandboxed tools using the Multi-Capability Protocol (MCP). The two MCP servers listen on `http://127.0.0.1:7101` (filesystem) and `http://127.0.0.1:7102` (executor). The agent, via the OpenAI Agents SDK, connects to these endpoints to discover and invoke the available tools.
+The agent communicates with its sandboxed tools using the Model Context Protocol (MCP). The two MCP servers listen on `http://127.0.0.1:7101` (filesystem) and `http://127.0.0.1:7102` (executor). The agent, via the OpenAI Agents SDK, connects to these endpoints to discover and invoke the available tools.
 
 -   **Filesystem Tools:** The agent uses tools like `sandbox_read_file` and `sandbox_write_file` to interact with the code.
 -   **Executor Tool:** The agent uses the `sandbox_run_command` tool to execute the `pytest` suite and verify its implementation.
